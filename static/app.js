@@ -147,9 +147,40 @@ document.addEventListener("DOMContentLoaded", () => {
     localStorage.setItem("bs_translate", translateOption.checked);
   });
 
-  // 2. URL Input & Paste Handling
+  // 2. URL Cleaning & Paste Handling
+  function cleanVideoUrl(rawUrl) {
+    if (!rawUrl) return "";
+    let trimmed = rawUrl.trim();
+    try {
+      if (trimmed.includes("facebook.com/login") || trimmed.includes("share_url=") || trimmed.includes("next=")) {
+        const urlObj = new URL(trimmed);
+        const params = urlObj.searchParams;
+        if (params.has("share_url")) {
+          return decodeURIComponent(params.get("share_url"));
+        }
+        if (params.has("next")) {
+          const nextVal = decodeURIComponent(params.get("next"));
+          try {
+            const nextObj = new URL(nextVal.startsWith("http") ? nextVal : "https://" + nextVal);
+            if (nextObj.searchParams.has("share_url")) {
+              return decodeURIComponent(nextObj.searchParams.get("share_url"));
+            }
+          } catch (e) {}
+          return nextVal;
+        }
+      }
+    } catch (e) {}
+    return trimmed;
+  }
+
   videoUrlInput.addEventListener("input", () => {
     clearUrlBtn.classList.toggle("hidden", !videoUrlInput.value);
+  });
+
+  videoUrlInput.addEventListener("blur", () => {
+    if (videoUrlInput.value) {
+      videoUrlInput.value = cleanVideoUrl(videoUrlInput.value);
+    }
   });
 
   clearUrlBtn.addEventListener("click", () => {
@@ -162,9 +193,10 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const text = await navigator.clipboard.readText();
       if (text) {
-        videoUrlInput.value = text.trim();
+        const cleaned = cleanVideoUrl(text);
+        videoUrlInput.value = cleaned;
         clearUrlBtn.classList.remove("hidden");
-        showToast("Link pasted!");
+        showToast(cleaned !== text.trim() ? "Facebook link unwrapped & pasted!" : "Link pasted!");
       }
     } catch (err) {
       showToast("Clipboard access denied. Please paste manually.");

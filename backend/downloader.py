@@ -3,6 +3,7 @@ import re
 import tempfile
 import uuid
 import shutil
+import urllib.parse
 import yt_dlp
 import imageio_ffmpeg
 
@@ -10,8 +11,29 @@ FFMPEG_EXE = shutil.which("ffmpeg") or imageio_ffmpeg.get_ffmpeg_exe()
 TEMP_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "temp_audio")
 os.makedirs(TEMP_DIR, exist_ok=True)
 
+def normalize_video_url(url: str) -> str:
+    """Unwraps Facebook login redirect and share tracking wrappers to get the actual video/reel URL."""
+    url = url.strip()
+    if 'facebook.com/login' in url.lower() or 'share_url=' in url:
+        try:
+            parsed = urllib.parse.urlparse(url)
+            qs = urllib.parse.parse_qs(parsed.query)
+            if 'next' in qs:
+                next_url = qs['next'][0]
+                next_parsed = urllib.parse.urlparse(next_url)
+                next_qs = urllib.parse.parse_qs(next_parsed.query)
+                if 'share_url' in next_qs:
+                    return next_qs['share_url'][0]
+                return next_url
+            if 'share_url' in qs:
+                return qs['share_url'][0]
+        except Exception:
+            pass
+    return url
+
 def detect_platform(url: str) -> str:
-    lower = url.lower()
+    clean_url = normalize_video_url(url)
+    lower = clean_url.lower()
     if "youtu.be" in lower or "youtube.com" in lower:
         return "youtube"
     elif "facebook.com" in lower or "fb.watch" in lower or "fb.com" in lower:
@@ -19,6 +41,7 @@ def detect_platform(url: str) -> str:
     return "other"
 
 def get_video_info(url: str) -> dict:
+    url = normalize_video_url(url)
     ydl_opts = {
         'skip_download': True,
         'quiet': True,
@@ -45,6 +68,7 @@ def download_audio(url: str) -> dict:
     Downloads and converts video audio to lightweight MP3 format (optimized for speech transcription).
     Returns path to audio file and metadata.
     """
+    url = normalize_video_url(url)
     unique_id = str(uuid.uuid4())[:8]
     output_template = os.path.join(TEMP_DIR, f"{unique_id}_%(title).50s.%(ext)s")
     
