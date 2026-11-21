@@ -1,0 +1,46 @@
+/* Mobile-optimized smooth scroll and text styling */
+html {
+  -webkit-tap-highlight-color: transparent;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+/* Custom scrollbars for transcript viewer */
+#transcriptDisplay::-webkit-scrollbar {
+  width: 5px;
+}
+#transcriptDisplay::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.6);
+}
+#transcriptDisplay::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.4);
+  border-radius: 9999px;
+}
+#transcriptDisplay::-webkit-scrollbar-thumb:hover {
+  background: rgba(249, 115, 22, 0.6);
+}
+
+/* Pulsing loader effect */
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(249, 115, 22, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(249, 115, 22, 0.5);
+  }
+}
+
+.pulse-glow {
+  animation: pulseGlow 2s infinite ease-in-out;
+}
+
+/* Timestamp badge styles */
+.timestamp-pill {
+  transition: all 0.15s ease-in-out;
+}
+.timestamp-pill:hover {
+  transform: translateY(-1px);
+}

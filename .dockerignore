@@ -1,0 +1,10 @@
+.git
+.gitignore
+.env
+.venv
+venv
+__pycache__
+*.pyc
+temp_audio
+temp_downloads
+*.md

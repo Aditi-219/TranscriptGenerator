@@ -1,0 +1,103 @@
+import os
+import re
+import tempfile
+import uuid
+import shutil
+import yt_dlp
+import imageio_ffmpeg
+
+FFMPEG_EXE = shutil.which("ffmpeg") or imageio_ffmpeg.get_ffmpeg_exe()
+TEMP_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "temp_audio")
+os.makedirs(TEMP_DIR, exist_ok=True)
+
+def detect_platform(url: str) -> str:
+    lower = url.lower()
+    if "youtu.be" in lower or "youtube.com" in lower:
+        return "youtube"
+    elif "facebook.com" in lower or "fb.watch" in lower or "fb.com" in lower:
+        return "facebook"
+    return "other"
+
+def get_video_info(url: str) -> dict:
+    ydl_opts = {
+        'skip_download': True,
+        'quiet': True,
+        'no_warnings': True,
+        'extract_flat': False,
+    }
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=False)
+        return {
+            "title": info.get("title", "Video"),
+            "duration": info.get("duration", 0),
+            "thumbnail": info.get("thumbnail") or (info.get("thumbnails")[-1]["url"] if info.get("thumbnails") else None),
+            "uploader": info.get("uploader") or info.get("channel", "Unknown"),
+            "platform": detect_platform(url)
+        }
+
+def download_audio(url: str) -> dict:
+    """
+    Downloads and converts video audio to lightweight MP3 format (optimized for speech transcription).
+    Returns path to audio file and metadata.
+    """
+    unique_id = str(uuid.uuid4())[:8]
+    output_template = os.path.join(TEMP_DIR, f"{unique_id}_%(title).50s.%(ext)s")
+    
+    ydl_opts = {
+        'format': 'bestaudio/best',
+        'ffmpeg_location': FFMPEG_EXE,
+        'postprocessors': [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'mp3',
+            'preferredquality': '64', # 64kbps mono/stereo is ideal for speech and keeps file size tiny
+        }],
+        'outtmpl': output_template,
+        'quiet': True,
+        'no_warnings': True,
+        'noplaylist': True,
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept-Language': 'hi,en-US,en;q=0.9',
+        }
+    }
+    
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=True)
+        # Identify downloaded mp3 file
+        title = info.get("title", "Video")
+        duration = info.get("duration", 0)
+        thumbnail = info.get("thumbnail")
+        uploader = info.get("uploader") or info.get("channel", "Unknown")
+        
+        # Locate generated file
+        expected_base = ydl.prepare_filename(info)
+        mp3_file = os.path.splitext(expected_base)[0] + ".mp3"
+        
+        if not os.path.exists(mp3_file):
+            # Fallback search in temp dir for files starting with unique_id
+            for f in os.listdir(TEMP_DIR):
+                if f.startswith(unique_id) and f.endswith(".mp3"):
+                    mp3_file = os.path.join(TEMP_DIR, f)
+                    break
+        
+        if not os.path.exists(mp3_file):
+            raise FileNotFoundError(f"Could not locate extracted audio file for {url}")
+            
+        file_size_mb = os.path.getsize(mp3_file) / (1024 * 1024)
+        
+        return {
+            "file_path": mp3_file,
+            "title": title,
+            "duration": duration,
+            "thumbnail": thumbnail,
+            "uploader": uploader,
+            "platform": detect_platform(url),
+            "file_size_mb": round(file_size_mb, 2)
+        }
+
+def cleanup_file(path: str):
+    try:
+        if path and os.path.exists(path):
+            os.remove(path)
+    except Exception as e:
+        print(f"Warning: Failed to delete {path}: {e}")
