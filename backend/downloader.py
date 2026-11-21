@@ -24,6 +24,11 @@ def get_video_info(url: str) -> dict:
         'quiet': True,
         'no_warnings': True,
         'extract_flat': False,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'ios', 'mweb', 'web']
+            }
+        }
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
@@ -44,8 +49,13 @@ def download_audio(url: str) -> dict:
     output_template = os.path.join(TEMP_DIR, f"{unique_id}_%(title).50s.%(ext)s")
     
     ydl_opts = {
-        'format': 'bestaudio/best',
+        'format': 'ba/b',
         'ffmpeg_location': FFMPEG_EXE,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'ios', 'mweb', 'web']
+            }
+        },
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
@@ -55,10 +65,6 @@ def download_audio(url: str) -> dict:
         'quiet': True,
         'no_warnings': True,
         'noplaylist': True,
-        'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept-Language': 'hi,en-US,en;q=0.9',
-        }
     }
     
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
