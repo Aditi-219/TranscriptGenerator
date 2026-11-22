@@ -36,6 +36,14 @@ py -3.13 run.py
    ```
 *(To test locally on PC, visit `http://localhost:8000`)*
 
+### YouTube sign-in challenge
+If YouTube requires sign-in to verify that you're not a bot, configure yt-dlp with a cookies file from a browser where you're signed in:
+```powershell
+py -3.13 -m yt_dlp --cookies-from-browser chrome --cookies youtube-cookies.txt --skip-download "https://www.youtube.com/watch?v=VIDEO_ID"
+$env:YOUTUBE_COOKIES_FILE = "C:\path\to\youtube-cookies.txt"
+```
+Then start the server in the same PowerShell session. The file must be accessible to the server (including when deployed remotely). Keep it outside the repository and never share or commit it; it contains your account session. Cookies may expire, in which case export a fresh file.
+
 ---
 
 ## 🔑 Getting an API Key (Free)

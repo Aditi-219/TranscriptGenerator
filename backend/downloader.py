@@ -40,6 +40,14 @@ def detect_platform(url: str) -> str:
         return "facebook"
     return "other"
 
+def _youtube_cookie_options(url: str) -> dict:
+    if detect_platform(url) != "youtube":
+        return {}
+    cookies_file = os.getenv("YOUTUBE_COOKIES_FILE")
+    if not cookies_file:
+        return {}
+    return {"cookiefile": os.path.expanduser(cookies_file)}
+
 def get_video_info(url: str) -> dict:
     url = normalize_video_url(url)
     ydl_opts = {
@@ -47,6 +55,7 @@ def get_video_info(url: str) -> dict:
         'quiet': True,
         'no_warnings': True,
         'extract_flat': False,
+        **_youtube_cookie_options(url),
         'extractor_args': {
             'youtube': {
                 'player_client': ['android', 'ios', 'mweb', 'web']
@@ -75,6 +84,7 @@ def download_audio(url: str) -> dict:
     ydl_opts = {
         'format': 'ba/b',
         'ffmpeg_location': FFMPEG_EXE,
+        **_youtube_cookie_options(url),
         'extractor_args': {
             'youtube': {
                 'player_client': ['android', 'ios', 'mweb', 'web']
