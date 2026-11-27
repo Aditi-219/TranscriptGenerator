@@ -40,13 +40,23 @@ def detect_platform(url: str) -> str:
         return "facebook"
     return "other"
 
+def _get_js_runtime_opts() -> dict:
+    node_path = shutil.which("node") or r"C:\Program Files\nodejs\node.exe"
+    if os.path.exists(node_path):
+        return {'js_runtimes': {'node': {}}}
+    return {}
+
 def _youtube_cookie_options(url: str) -> dict:
     if detect_platform(url) != "youtube":
         return {}
+    opts = {}
     cookies_file = os.getenv("YOUTUBE_COOKIES_FILE")
-    if not cookies_file:
-        return {}
-    return {"cookiefile": os.path.expanduser(cookies_file)}
+    if cookies_file and os.path.exists(os.path.expanduser(cookies_file)):
+        opts["cookiefile"] = os.path.expanduser(cookies_file)
+    browser = os.getenv("YOUTUBE_COOKIES_BROWSER")
+    if browser:
+        opts["cookiesfrombrowser"] = (browser.lower().strip(), )
+    return opts
 
 def get_video_info(url: str) -> dict:
     url = normalize_video_url(url)
@@ -55,6 +65,7 @@ def get_video_info(url: str) -> dict:
         'quiet': True,
         'no_warnings': True,
         'extract_flat': False,
+        **_get_js_runtime_opts(),
         **_youtube_cookie_options(url),
         'extractor_args': {
             'youtube': {
@@ -74,8 +85,8 @@ def get_video_info(url: str) -> dict:
 
 def download_audio(url: str) -> dict:
     """
-    Downloads and converts video audio to lightweight MP3 format (optimized for speech transcription).
-    Returns path to audio file and metadata.
+    Downloads and converts video audio to speech-optimized 16kHz mono MP3 format.
+    Ensures complete, unclipped audio extraction for Whisper and Gemini models.
     """
     url = normalize_video_url(url)
     unique_id = str(uuid.uuid4())[:8]
@@ -84,6 +95,7 @@ def download_audio(url: str) -> dict:
     ydl_opts = {
         'format': 'ba/b',
         'ffmpeg_location': FFMPEG_EXE,
+        **_get_js_runtime_opts(),
         **_youtube_cookie_options(url),
         'extractor_args': {
             'youtube': {
@@ -93,8 +105,11 @@ def download_audio(url: str) -> dict:
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
-            'preferredquality': '64', # 64kbps mono/stereo is ideal for speech and keeps file size tiny
+            'preferredquality': '96',
         }],
+        'postprocessor_args': {
+            'FFmpegExtractAudio': ['-ar', '16000', '-ac', '1']
+        },
         'outtmpl': output_template,
         'quiet': True,
         'no_warnings': True,

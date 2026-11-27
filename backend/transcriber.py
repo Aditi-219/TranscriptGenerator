@@ -42,7 +42,8 @@ def transcribe_with_groq(file_path: str, api_key: str, translate_to_english: boo
             "model": "whisper-large-v3",
             "language": "hi",
             "response_format": "verbose_json",
-            "temperature": "0.0"
+            "temperature": "0.0",
+            "prompt": "यह स्पष्ट और प्रामाणिक हिंदी बातचीत/भाषण है। कृपया हर एक शब्द, संवाद और वाक्य को बिना छोड़े पूरी तरह से शुद्ध देवनागरी लिपि में लिखें।"
         }
         
         response = requests.post(url, headers=headers, files=files, data=data, timeout=120)
@@ -61,10 +62,13 @@ def transcribe_with_groq(file_path: str, api_key: str, translate_to_english: boo
     full_hindi_text = res_data.get("text", "").strip()
     
     segments = []
+    seg_texts = []
     for s in raw_segments:
         start_sec = s.get("start", 0.0)
         end_sec = s.get("end", 0.0)
         text = s.get("text", "").strip()
+        if text:
+            seg_texts.append(text)
         segments.append({
             "start": round(start_sec, 2),
             "end": round(end_sec, 2),
@@ -73,6 +77,11 @@ def transcribe_with_groq(file_path: str, api_key: str, translate_to_english: boo
             "hindi": text,
             "english": ""
         })
+
+    # Ensure full transcript preserves all segment speech without skipping
+    joined_segments_text = " ".join(seg_texts).strip()
+    if len(joined_segments_text) > len(full_hindi_text):
+        full_hindi_text = joined_segments_text
         
     english_transcript = ""
     
@@ -129,16 +138,17 @@ def transcribe_with_gemini(file_path: str, api_key: str, translate_to_english: b
         audio_bytes = f.read()
     b64_audio = base64.b64encode(audio_bytes).decode("utf-8")
     
-    endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
+    endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key={api_key}"
     
     prompt = (
         "You are an expert Hindi audio transcriber. Listen carefully to the attached audio, which contains spoken Hindi. "
-        "Perform an accurate, verbatim transcription of all spoken Hindi in clean Devanagari script. "
+        "Perform a 100% complete, verbatim transcription of ALL spoken Hindi in clean Devanagari script from the very beginning to the very end. "
+        "CRITICAL: Do not skip, omit, summarize, or condense ANY spoken sentence or dialogue. Transcribe every word accurately. "
         "If the speaker uses common English/Hinglish terms, transcribe them appropriately. "
-        f"{'Also translate the full transcript into English. ' if translate_to_english else ''}"
+        f"{'Also translate the full transcript into natural English. ' if translate_to_english else ''}"
         "Format your response strictly as valid JSON with the following structure:\n"
         "{\n"
-        '  "hindi_transcript": "Full text in Devanagari script with natural paragraphs",\n'
+        '  "hindi_transcript": "Full complete verbatim text in Devanagari script with natural paragraphs",\n'
         f'  "english_transcript": "{"Full English translation" if translate_to_english else ""}",\n'
         '  "segments": [\n'
         '     {"start": 0.0, "end": 4.5, "hindi": "...", "english": "..."}\n'
@@ -172,9 +182,12 @@ def transcribe_with_gemini(file_path: str, api_key: str, translate_to_english: b
     response = requests.post(endpoint, json=payload, headers={"Content-Type": "application/json"}, timeout=180)
     
     if response.status_code != 200:
-        # Fallback to gemini-1.5-flash if 2.0-flash is unavailable
-        fallback_endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
-        response = requests.post(fallback_endpoint, json=payload, headers={"Content-Type": "application/json"}, timeout=180)
+        # Fallback to gemini-2.5-flash or gemini-flash-latest if 3.8-flash is unavailable
+        for fallback_model in ["gemini-2.5-flash", "gemini-flash-latest"]:
+            fb_endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{fallback_model}:generateContent?key={api_key}"
+            response = requests.post(fb_endpoint, json=payload, headers={"Content-Type": "application/json"}, timeout=180)
+            if response.status_code == 200:
+                break
         
     if response.status_code != 200:
         error_msg = response.text
